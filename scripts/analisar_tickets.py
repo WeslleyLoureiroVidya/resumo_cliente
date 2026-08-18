@@ -21,24 +21,21 @@ EMOJI_STATUS = {
 }
 
 
-def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
+def buscar_tickets_movidesk_por_organizacao(cliente_organizacao, token, data_inicio, data_fim):
     """
-    Busca no Movidesk todos os tickets do período utilizando o padrão datetime''
-    exigido pelo OData do Movidesk e filtra a organização em Python.
+    Busca no Movidesk todos os tickets do mês atual utilizando a mesma sintaxe
+    valida de filtro OData, filtrando a organização em Python.
     """
-    data_inicio_str = data_inicio.strftime("%Y-%m-%dT00:00:00")
-    data_fim_str = (data_fim + datetime.timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
+    query_start = data_inicio.strftime("%Y-%m-%d")
+    query_end = data_fim.strftime("%Y-%m-%d")
 
-    # O Movidesk exige o uso de datetime'...' para filtros de data no OData
-    filtro = f"createdDate ge datetime'{data_inicio_str}' and createdDate lt datetime'{data_fim_str}'"
+    # Sintaxe exata validada pela API do Movidesk
+    filtro = f"createdDate ge {query_start}T00:00:00.00z and createdDate le {query_end}T23:59:59.00z"
 
     params = {
         "token": token,
-        "$select": "id,protocol,subject,category,urgency,status,baseStatus,createdDate",
-        "$expand": (
-            "clients($select=businessName;$expand=organization($select=businessName)),"
-            "owner($select=businessName)"
-        ),
+        "$select": "id,protocol,subject,category,urgency,status,baseStatus,createdDate,clients",
+        "$expand": "clients($expand=organization)",
         "$filter": filtro,
         "$orderby": "createdDate desc",
     }
@@ -46,6 +43,9 @@ def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
     resposta = requests.get(MOVIDESK_BASE_URL, params=params, timeout=30)
     resposta.raise_for_status()
     todos_tickets = resposta.json()
+
+    if not isinstance(todos_tickets, list):
+        return []
 
     # Filtro em Python pelo nome da organização do cliente (case-insensitive e parcial)
     tickets_filtrados = []
@@ -55,8 +55,9 @@ def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
         org_encontrada = False
         for c in t.get("clients", []):
             org = c.get("organization")
-            if org and org.get("businessName"):
-                if cliente_busca in org["businessName"].strip().lower():
+            if isinstance(org, dict):
+                nome_org = org.get("businessName") or org.get("name") or ""
+                if cliente_busca in nome_org.strip().lower():
                     org_encontrada = True
                     break
         if org_encontrada:
@@ -67,7 +68,7 @@ def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
 
 def formatar_data_br(data_iso):
     try:
-        return datetime.datetime.fromisoformat(data_iso.split(".")[0]).strftime("%d/%m/%Y %H:%M")
+        return datetime.datetime.fromisoformat(data_iso.replace("Z", "").split(".")[0]).strftime("%d/%m/%Y %H:%M")
     except (ValueError, AttributeError):
         return data_iso or "-"
 
@@ -75,20 +76,22 @@ def formatar_data_br(data_iso):
 def nome_organizacao(ticket):
     for c in ticket.get("clients", []):
         org = c.get("organization")
-        if org and org.get("businessName"):
-            return org["businessName"]
+        if isinstance(org, dict):
+            nome = org.get("businessName") or org.get("name")
+            if nome:
+                return nome
     return "-"
 
 
 def nome_solicitante(ticket):
     clientes = ticket.get("clients", [])
-    if clientes:
+    if isinstance(clientes, list) and clientes:
         return clientes[0].get("businessName", "-")
     return "-"
 
 
 def montar_tabela_tickets(tickets):
-    """Monta uma tabela markdown organizada, com número do ticket, status, urgência, datas e solicitante."""
+    """Monta uma tabela markdown organizada com os tickets do cliente no período."""
     if not tickets:
         return "_Nenhum ticket encontrado para esta organização no período._\n"
 
@@ -114,7 +117,7 @@ def montar_tabela_tickets(tickets):
 
 
 def montar_resumo_status(tickets):
-    """Conta tickets por status base para dar uma visão geral rápida no topo do relatório."""
+    """Conta tickets por status para dar uma visão geral rápida no topo do relatório."""
     contagem = {}
     for t in tickets:
         status = t.get("status") or "Desconhecido"
@@ -126,10 +129,7 @@ def montar_resumo_status(tickets):
 
 
 def gerar_conteudo_com_retry(client, model, contents, max_tentativas=5, espera_inicial=10):
-    """
-    Chama o Gemini com retry e backoff exponencial.
-    Trata especificamente erros 503 (modelo sobrecarregado) e 429 (rate limit).
-    """
+    """Chama o Gemini com retry e backoff exponencial (trata 503 e 429)."""
     espera = espera_inicial
     for tentativa in range(1, max_tentativas + 1):
         try:
@@ -138,18 +138,16 @@ def gerar_conteudo_com_retry(client, model, contents, max_tentativas=5, espera_i
             if tentativa == max_tentativas:
                 print(f"Falhou após {max_tentativas} tentativas. Desistindo.")
                 raise
-            print(f"Tentativa {tentativa}/{max_tentativas} falhou ({e}). "
-                  f"Aguardando {espera}s antes de tentar novamente...")
+            print(f"Tentativa {tentativa}/{max_tentativas} falhou ({e}). Aguardando {espera}s...")
             time.sleep(espera)
-            espera *= 2  # backoff exponencial: 10s, 20s, 40s, 80s...
+            espera *= 2
         except genai_errors.ClientError as e:
-            # Erros 4xx (ex: chave inválida, modelo não encontrado) não adiantam retry
-            print(f"Erro do cliente, não é recuperável com retry: {e}")
+            print(f"Erro do cliente, não recuperável: {e}")
             raise
 
 
 def enviar_email(destinatario, remetente, senha_app, assunto, corpo, caminho_anexo):
-    """Envia o relatório por e-mail via Gmail SMTP, com o .md em anexo."""
+    """Envia o relatório por e-mail via Gmail SMTP com o .md em anexo."""
     msg = EmailMessage()
     msg["Subject"] = assunto
     msg["From"] = remetente
@@ -175,13 +173,16 @@ def main():
     primeiro_dia_mes = hoje.replace(day=1)
     cliente = os.environ.get("CLIENTE_NOME")
 
+    if not cliente:
+        raise ValueError("A variável de ambiente CLIENTE_NOME não foi informada.")
+
     movidesk_token = os.environ.get("MOVIDESK_TOKEN")
     if not movidesk_token:
-        raise ValueError("A variável de ambiente MOVIDESK_TOKEN não foi configurada nos Secrets do repositório.")
+        raise ValueError("A variável de ambiente MOVIDESK_TOKEN não foi configurada nos Secrets.")
 
     print(f"Buscando tickets da organização '{cliente}' no Movidesk, de {primeiro_dia_mes} até {hoje}...")
-    tickets = buscar_tickets_movidesk(cliente, movidesk_token, primeiro_dia_mes, hoje)
-    print(f"{len(tickets)} ticket(s) encontrado(s).")
+    tickets = buscar_tickets_movidesk_por_organizacao(cliente, movidesk_token, primeiro_dia_mes, hoje)
+    print(f"{len(tickets)} ticket(s) encontrado(s) para '{cliente}'.")
 
     tabela_tickets_md = montar_tabela_tickets(tickets)
     resumo_status_md = montar_resumo_status(tickets)
@@ -189,10 +190,10 @@ def main():
     # Inicializa o cliente da API do Gemini
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("A variável de ambiente GEMINI_API_KEY não foi configurada nos Secrets do repositório.")
+        raise ValueError("A variável de ambiente GEMINI_API_KEY não foi configurada nos Secrets.")
     client = genai.Client(api_key=api_key)
 
-    # Dados enviados à IA: só os campos relevantes para análise (sem inflar o prompt)
+    # Dados resumidos para a IA analisar
     dados_para_ia = [
         {
             "protocolo": t.get("protocol") or t.get("id"),
@@ -208,7 +209,7 @@ def main():
 
     prompt = f"""
 Você é um especialista em Sucesso do Cliente e Relacionamento.
-Abaixo estão os tickets abertos pela organização '{cliente}' no período de {primeiro_dia_mes.strftime('%d/%m/%Y')} até {hoje.strftime('%d/%m/%Y')}, considerando TODOS os solicitantes dessa organização, independentemente de quem abriu cada ticket.
+Abaixo estão os tickets abertos pela organização '{cliente}' no período de {primeiro_dia_mes.strftime('%d/%m/%Y')} até {hoje.strftime('%d/%m/%Y')}, considerando TODOS os solicitantes dessa organização.
 
 Dados dos tickets (JSON):
 {dados_para_ia}
@@ -218,15 +219,14 @@ Elabore uma análise executiva objetiva, em markdown, para uma reunião de alinh
 2. **Problemas Técnicos Recorrentes:** incidentes que merecem atenção da engenharia ou suporte técnico.
 3. **Sugestões de Atuação:** onde nossa equipe deve agir proativamente para melhorar a experiência e retenção desse cliente.
 
-Não repita a lista de tickets nem faça uma contagem geral — isso já será exibido separadamente no relatório. Vá direto para a análise.
-Se não houver tickets suficientes para uma conclusão robusta, diga isso claramente em vez de especular.
+Vá direto para a análise. Se não houver tickets suficientes para uma conclusão robusta, diga isso claramente.
 """
 
     print("Gerando análise executiva com o Gemini...")
     response = gerar_conteudo_com_retry(client=client, model="gemini-2.5-flash", contents=prompt)
     analise_ia = response.text
 
-    # Monta o relatório final, combinando visão geral + tabela de tickets + análise da IA
+    # Montagem do relatório final em Markdown
     texto_relatorio = f"""# 📊 Resumo do Cliente: {cliente}
 
 **Período analisado:** {primeiro_dia_mes.strftime('%d/%m/%Y')} a {hoje.strftime('%d/%m/%Y')}
@@ -249,7 +249,7 @@ Se não houver tickets suficientes para uma conclusão robusta, diga isso claram
 {analise_ia}
 """
 
-    # Salvando o resultado em um arquivo Markdown
+    # Salvando em arquivo Markdown
     nome_arquivo = f"relatorio_{cliente.lower().replace(' ', '_')}_{hoje.strftime('%Y%m%d')}.md"
     os.makedirs("relatorios", exist_ok=True)
     caminho_completo = os.path.join("relatorios", nome_arquivo)
@@ -257,21 +257,19 @@ Se não houver tickets suficientes para uma conclusão robusta, diga isso claram
         f.write(texto_relatorio)
     print(f"Relatório gerado com sucesso em: {caminho_completo}")
 
-    # Envio do e-mail
+    # Configurações de Envio de E-mail
     email_user = os.environ.get("EMAIL_USER")
     email_password = os.environ.get("EMAIL_PASSWORD")
     email_to = os.environ.get("EMAIL_TO")
     if not all([email_user, email_password, email_to]):
-        raise ValueError(
-            "As variáveis EMAIL_USER, EMAIL_PASSWORD e EMAIL_TO precisam estar configuradas nos Secrets do repositório."
-        )
+        raise ValueError("As variáveis EMAIL_USER, EMAIL_PASSWORD e EMAIL_TO precisam estar configuradas.")
 
     assunto_email = f"Resumo do Cliente {cliente} - Reunião de Alinhamento ({hoje.strftime('%d/%m/%Y')})"
     corpo_email = (
         f"Olá,\n\n"
         f"Segue em anexo o relatório executivo do cliente '{cliente}' "
         f"({len(tickets)} ticket(s) no período de {primeiro_dia_mes.strftime('%d/%m/%Y')} até {hoje.strftime('%d/%m/%Y')}).\n\n"
-        f"O relatório completo, com a tabela de tickets e a análise executiva, está no anexo em Markdown.\n"
+        f"O relatório completo contendo a tabela de tickets e a análise executiva da IA está anexado em Markdown.\n"
     )
 
     enviar_email(
