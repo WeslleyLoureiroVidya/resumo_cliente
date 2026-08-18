@@ -21,24 +21,16 @@ EMOJI_STATUS = {
 }
 
 
-def escapar_odata(texto):
-    """Escapa aspas simples para uso seguro dentro de literais string do OData."""
-    return texto.replace("'", "''")
-
-
 def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
     """
-    Busca no Movidesk todos os tickets vinculados à ORGANIZAÇÃO do cliente
-    (não à pessoa que abriu o ticket), dentro do período informado.
+    Busca no Movidesk todos os tickets do período e filtra em Python
+    pela organização do cliente para evitar erros de OData complexo.
     """
-    cliente_escapado = escapar_odata(cliente_organizacao)
     data_inicio_str = data_inicio.strftime("%Y-%m-%dT00:00:00")
     data_fim_str = (data_fim + datetime.timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
 
-    filtro = (
-        f"createdDate ge {data_inicio_str} and createdDate lt {data_fim_str} "
-        f"and clients/any(c: c/organization/businessName eq '{cliente_escapado}')"
-    )
+    # Filtra apenas por período no OData (que é universalmente suportado)
+    filtro = f"createdDate ge {data_inicio_str} and createdDate lt {data_fim_str}"
 
     params = {
         "token": token,
@@ -53,7 +45,24 @@ def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
 
     resposta = requests.get(MOVIDESK_BASE_URL, params=params, timeout=30)
     resposta.raise_for_status()
-    return resposta.json()
+    todos_tickets = resposta.json()
+
+    # Filtro em Python pelo nome da organização do cliente (case-insensitive e parcial)
+    tickets_filtrados = []
+    cliente_busca = cliente_organizacao.strip().lower()
+
+    for t in todos_tickets:
+        org_encontrada = False
+        for c in t.get("clients", []):
+            org = c.get("organization")
+            if org and org.get("businessName"):
+                if cliente_busca in org["businessName"].strip().lower():
+                    org_encontrada = True
+                    break
+        if org_encontrada:
+            tickets_filtrados.append(t)
+
+    return tickets_filtrados
 
 
 def formatar_data_br(data_iso):
