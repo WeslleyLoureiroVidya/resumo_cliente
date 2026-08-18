@@ -1,5 +1,7 @@
 import os
 import datetime
+import smtplib
+from email.message import EmailMessage
 from google import genai
 
 # Configurações de Datas (Do dia 1 até o dia atual)
@@ -38,11 +40,13 @@ Por favor, elabore um relatório executivo para a nossa reunião de alinhamento 
 4. **Sugestões de Atuação:** Onde a nossa equipe deve agir proativamente para melhorar a experiência e retenção desse cliente.
 """
 
-# Chamada ao modelo Gemini (modelo atualizado - gemini-2.5-flash foi descontinuado)
+# Chamada ao modelo Gemini
 response = client.models.generate_content(
     model='gemini-3.6-flash',
     contents=prompt,
 )
+
+texto_relatorio = response.text
 
 # Salvando o resultado em um arquivo Markdown para consulta
 nome_arquivo = f"relatorio_{cliente.lower().replace(' ', '_')}_{hoje.strftime('%Y%m%d')}.md"
@@ -50,6 +54,58 @@ os.makedirs("relatorios", exist_ok=True)
 caminho_completo = os.path.join("relatorios", nome_arquivo)
 
 with open(caminho_completo, "w", encoding="utf-8") as f:
-    f.write(response.text)
+    f.write(texto_relatorio)
 
 print(f"Relatório gerado com sucesso em: {caminho_completo}")
+
+
+def enviar_email(destinatario, remetente, senha_app, assunto, corpo, caminho_anexo):
+    """Envia o relatório por e-mail via Gmail SMTP, com o .md em anexo."""
+    msg = EmailMessage()
+    msg["Subject"] = assunto
+    msg["From"] = remetente
+    msg["To"] = destinatario
+    msg.set_content(corpo)
+
+    with open(caminho_anexo, "rb") as f:
+        conteudo_anexo = f.read()
+    msg.add_attachment(
+        conteudo_anexo,
+        maintype="text",
+        subtype="markdown",
+        filename=os.path.basename(caminho_anexo),
+    )
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+        smtp.login(remetente, senha_app)
+        smtp.send_message(msg)
+
+
+email_user = os.environ.get("EMAIL_USER")
+email_password = os.environ.get("EMAIL_PASSWORD")
+email_to = os.environ.get("EMAIL_TO")
+
+if not all([email_user, email_password, email_to]):
+    raise ValueError(
+        "As variáveis EMAIL_USER, EMAIL_PASSWORD e EMAIL_TO precisam estar configuradas nos Secrets do repositório."
+    )
+
+assunto_email = f"Resumo do Cliente {cliente} - Reunião de Alinhamento ({hoje.strftime('%d/%m/%Y')})"
+corpo_email = (
+    f"Olá,\n\n"
+    f"Segue em anexo o relatório executivo do cliente '{cliente}', "
+    f"referente ao período de {primeiro_dia_mes.strftime('%d/%m/%Y')} até {hoje.strftime('%d/%m/%Y')}.\n\n"
+    f"Resumo gerado automaticamente:\n\n"
+    f"{texto_relatorio}\n"
+)
+
+enviar_email(
+    destinatario=email_to,
+    remetente=email_user,
+    senha_app=email_password,
+    assunto=assunto_email,
+    corpo=corpo_email,
+    caminho_anexo=caminho_completo,
+)
+
+print(f"E-mail enviado com sucesso para: {email_to}")
