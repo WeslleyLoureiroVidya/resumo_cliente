@@ -1,0 +1,34 @@
+name: Gerar Resumo de Cliente para Reunião
+
+on:
+  workflow_dispatch:
+    inputs:
+      cliente_nome:
+        description: 'Nome ou ID do cliente para gerar o resumo'
+        required: true
+        type: string
+
+jobs:
+  analisar-cliente:
+  runs-on: ubuntu-latest
+  
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar Dependências
+        run: |
+          pip install requests google-genai
+
+      - name: Executar Script de Análise
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TICKET_API_TOKEN: ${{ secrets.TICKET_API_TOKEN }}
+          CLIENTE_NOME: ${{ inputs.cliente_nome }}
+        run: |
+          python scripts/analisar_tickets.py
