@@ -3,12 +3,12 @@ import time
 import datetime
 import html
 import smtplib
+import re
 import requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google import genai
 from google.genai import errors as genai_errors
-import markdown  # Biblioteca padrão para converter markdown em html formatado
 
 MOVIDESK_BASE_URL = "https://api.movidesk.com/public/v1/tickets"
 
@@ -77,12 +77,58 @@ def status_class(base_status):
     return "status-info"
 
 
+def markdown_para_html(texto_md):
+    """Converte o texto markdown da IA em HTML limpo e estilizado sem precisar de bibliotecas externas."""
+    linhas = texto_md.split("\n")
+    html_saida = []
+    em_lista = False
+
+    for linha in linhas:
+        linha_limpa = linha.strip()
+        
+        # Converte títulos ### em tags <h3>
+        if linha_limpa.startswith("### "):
+            if em_lista:
+                html_saida.append("</ul>")
+                em_lista = False
+            titulo = linha_limpa.replace("### ", "")
+            html_saida.append(f"<h3>{titulo}</h3>")
+        
+        # Converte itens de lista * ou -
+        elif linha_limpa.startswith("* ") or linha_limpa.startswith("- "):
+            if not em_lista:
+                html_saida.append("<ul>")
+                em_lista = True
+            conteudo = linha_limpa[2:].strip()
+            # Converte negritos **texto** em <strong>texto</strong>
+            conteudo = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', conteudo)
+            html_saida.append(f"<li>{conteudo}</li>")
+        
+        elif linha_limpa == "---":
+            if em_lista:
+                html_saida.append("</ul>")
+                em_lista = False
+            html_saida.append("<hr style='border:0; border-top:1px solid #ebdcf0; margin: 15px 0;'>")
+            
+        elif linha_limpa:
+            if em_lista:
+                html_saida.append("</ul>")
+                em_lista = False
+            texto = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', linha_limpa)
+            html_saida.append(f"<p>{texto}</p>")
+
+    if em_lista:
+        html_saida.append("</ul>")
+
+    return "\n".join(html_saida)
+
+
 def gerar_conteudo_com_retry(client, model, contents, max_tentativas=5, espera_inicial=10):
     espera = espera_inicial
     for tentativa in range(1, max_tentativas + 1):
         try:
             return client.models.generate_content(model=model, contents=contents)
-        except genai_errors.ServerError as e:
+        except genai_errors.ServerError:
             if tentativa == max_tentativas:
                 raise
             time.sleep(espera)
@@ -107,13 +153,11 @@ def main():
     tickets = buscar_tickets_movidesk_por_organizacao(cliente, movidesk_token, primeiro_dia_mes, hoje)
     print(f"{len(tickets)} ticket(s) encontrado(s).")
 
-    # Contagem de status para os cards de resumo
     total_tickets = len(tickets)
     resolvidos = sum(1 for t in tickets if (t.get("baseStatus") or "").lower() in ["solved", "closed"])
     em_andamento = sum(1 for t in tickets if (t.get("baseStatus") or "").lower() in ["new", "inattendance", "reopened"])
     parados = sum(1 for t in tickets if (t.get("baseStatus") or "").lower() == "stopped")
 
-    # Inicializa o Gemini
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("A variável de ambiente GEMINI_API_KEY não foi configurada.")
@@ -150,10 +194,9 @@ Use listas com marcadores (*) para os pontos de cada seção. Seja direto e prof
     print("Gerando análise executiva com o Gemini...")
     response = gerar_conteudo_com_retry(client=client, model="gemini-3.6-flash", contents=prompt)
     
-    # Converte o Markdown da IA em HTML limpo e estilizado
-    analise_ia_html = markdown.markdown(response.text)
+    # Converte o markdown gerado pela IA em HTML limpo de forma nativa
+    analise_ia_html = markdown_para_html(response.text)
 
-    # Montagem das linhas da tabela HTML
     linhas_tabela = ""
     if not tickets:
         linhas_tabela = '<tr><td colspan="6" style="text-align: center; padding: 25px; color: #6b7280;">Nenhum ticket encontrado no período.</td></tr>'
@@ -178,7 +221,6 @@ Use listas com marcadores (*) para os pontos de cada seção. Seja direto e prof
             </tr>
             """
 
-    # HTML com estilos refinados para a área de insights da IA
     html_content = f"""
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -199,9 +241,8 @@ Use listas com marcadores (*) para os pontos de cada seção. Seja direto e prof
         .card-value {{ font-size: 22px; font-weight: bold; color: #111827; }}
         .section-title {{ font-size: 16px; font-weight: bold; color: #3b1443; margin: 25px 0 12px; border-bottom: 2px solid #f3f4f6; padding-bottom: 6px; }}
         
-        /* Estilização refinada para os insights da IA */
         .ai-box {{ background: #faf5fb; border: 1px solid #f3e8f5; border-left: 4px solid #3b1443; padding: 20px; border-radius: 6px; font-size: 13px; line-height: 1.6; color: #374151; margin-bottom: 30px; }}
-        .ai-box h3 {{ font-size: 14px; color: #3b1443; margin-top: 16px; margin-bottom: 8px; border-bottom: 1px solid #ebdcf0; padding-bottom: 4px; }}
+        .ai-box h3 {{ font-size: 14px; color: #3b1443; margin-top: 18px; margin-bottom: 8px; border-bottom: 1px solid #ebdcf0; padding-bottom: 4px; }}
         .ai-box h3:first-child {{ margin-top: 0; }}
         .ai-box ul {{ margin: 0 0 10px 0; padding-left: 20px; }}
         .ai-box li {{ margin-bottom: 6px; }}
