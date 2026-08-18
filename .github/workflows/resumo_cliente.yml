@@ -1,32 +1,27 @@
-name: Gerar Resumo de Cliente para Reunião
+name: Gerar Resumo de Cliente Mensal
 on:
+  schedule:
+    # Todo dia 1º às 08:00
+    - cron: '0 8 1 * *'
   workflow_dispatch:
-    inputs:
-      cliente_nome:
-        description: 'Nome ou ID do cliente para gerar o resumo'
-        required: true
-        type: string
-jobs:
-  analisar-cliente:
-    runs-on: ubuntu-latest
 
+jobs:
+  analisar-clientes:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout do Repositório
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       - name: Configurar Python
         uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+        with: {python-version: '3.11'}
       - name: Instalar Dependências
-        run: |
-          pip install requests google-genai
-      - name: Executar Script de Análise
+        run: pip install requests google-genai
+      - name: Executar
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           MOVIDESK_TOKEN: ${{ secrets.MOVIDESK_TOKEN }}
-          CLIENTE_NOME: ${{ inputs.cliente_nome }}
+          # Lista separada por vírgula
+          CLIENTES_LISTA: "Empresa A, Empresa B, Empresa C, Empresa D, Empresa E"
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
-        run: |
-          python scripts/analisar_tickets.py
+        run: python scripts/analisar_tickets.py
