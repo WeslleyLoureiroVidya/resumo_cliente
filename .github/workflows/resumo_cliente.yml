@@ -10,7 +10,7 @@ on:
 
 jobs:
   analisar-cliente:
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
   
     steps:
       - name: Checkout do Repositório
