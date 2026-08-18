@@ -1,8 +1,10 @@
 import os
+import time
 import datetime
 import smtplib
 from email.message import EmailMessage
 from google import genai
+from google.genai import errors as genai_errors
 
 # Configurações de Datas (Do dia 1 até o dia atual)
 hoje = datetime.date.today()
@@ -40,8 +42,32 @@ Por favor, elabore um relatório executivo para a nossa reunião de alinhamento 
 4. **Sugestões de Atuação:** Onde a nossa equipe deve agir proativamente para melhorar a experiência e retenção desse cliente.
 """
 
-# Chamada ao modelo Gemini
-response = client.models.generate_content(
+def gerar_conteudo_com_retry(client, model, contents, max_tentativas=5, espera_inicial=10):
+    """
+    Chama o Gemini com retry e backoff exponencial.
+    Trata especificamente erros 503 (modelo sobrecarregado) e 429 (rate limit).
+    """
+    espera = espera_inicial
+    for tentativa in range(1, max_tentativas + 1):
+        try:
+            return client.models.generate_content(model=model, contents=contents)
+        except genai_errors.ServerError as e:
+            if tentativa == max_tentativas:
+                print(f"Falhou após {max_tentativas} tentativas. Desistindo.")
+                raise
+            print(f"Tentativa {tentativa}/{max_tentativas} falhou ({e}). "
+                  f"Aguardando {espera}s antes de tentar novamente...")
+            time.sleep(espera)
+            espera *= 2  # backoff exponencial: 10s, 20s, 40s, 80s...
+        except genai_errors.ClientError as e:
+            # Erros 4xx (ex: chave inválida, modelo não encontrado) não adiantam retry
+            print(f"Erro do cliente, não é recuperável com retry: {e}")
+            raise
+
+
+# Chamada ao modelo Gemini (com retry automático em caso de indisponibilidade)
+response = gerar_conteudo_com_retry(
+    client=client,
     model='gemini-3.6-flash',
     contents=prompt,
 )
