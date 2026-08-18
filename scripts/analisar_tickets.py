@@ -223,7 +223,7 @@ Vá direto para a análise. Se não houver tickets suficientes para uma conclus�
 """
 
     print("Gerando análise executiva com o Gemini...")
-    response = gerar_conteudo_com_retry(client=client, model="gemini-2.5-flash", contents=prompt)
+    response = gerar_conteudo_com_retry(client=client, model="gemini-3.6-flash", contents=prompt)
     analise_ia = response.text
 
     # Montagem do relatório final em Markdown
