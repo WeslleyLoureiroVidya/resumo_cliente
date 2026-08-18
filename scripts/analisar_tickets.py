@@ -23,14 +23,14 @@ EMOJI_STATUS = {
 
 def buscar_tickets_movidesk(cliente_organizacao, token, data_inicio, data_fim):
     """
-    Busca no Movidesk todos os tickets do período e filtra em Python
-    pela organização do cliente para evitar erros de OData complexo.
+    Busca no Movidesk todos os tickets do período utilizando o padrão datetime''
+    exigido pelo OData do Movidesk e filtra a organização em Python.
     """
     data_inicio_str = data_inicio.strftime("%Y-%m-%dT00:00:00")
     data_fim_str = (data_fim + datetime.timedelta(days=1)).strftime("%Y-%m-%dT00:00:00")
 
-    # Filtra apenas por período no OData (que é universalmente suportado)
-    filtro = f"createdDate ge {data_inicio_str} and createdDate lt {data_fim_str}"
+    # O Movidesk exige o uso de datetime'...' para filtros de data no OData
+    filtro = f"createdDate ge datetime'{data_inicio_str}' and createdDate lt datetime'{data_fim_str}'"
 
     params = {
         "token": token,
