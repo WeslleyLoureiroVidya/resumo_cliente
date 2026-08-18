@@ -214,7 +214,7 @@ Se não houver tickets suficientes para uma conclusão robusta, diga isso claram
 """
 
     print("Gerando análise executiva com o Gemini...")
-    response = gerar_conteudo_com_retry(client=client, model="gemini-3.6-flash", contents=prompt)
+    response = gerar_conteudo_com_retry(client=client, model="gemini-2.5-flash", contents=prompt)
     analise_ia = response.text
 
     # Monta o relatório final, combinando visão geral + tabela de tickets + análise da IA
