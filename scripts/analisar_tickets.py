@@ -5,11 +5,11 @@ from google import genai
 # Configurações de Datas (Do dia 1 até o dia atual)
 hoje = datetime.date.today()
 primeiro_dia_mes = hoje.replace(day=1)
-
 cliente = os.environ.get("CLIENTE_NOME")
+
 print(f"Buscando tickets para o cliente: {cliente} de {primeiro_dia_mes} até {hoje}")
 
-# Mock de exemplo de dados vindos dos tickets (substitua pela chamada real à sua API de tickets se preferir)
+# Mock de exemplo de dados vindos dos tickets (substitua pela chamada real à sua API de tickets)
 tickets_exemplo = [
     {"id": 101, "data": "2026-08-03", "assunto": "Lentidão no módulo de relatórios", "status": "Resolvido"},
     {"id": 115, "data": "2026-08-10", "assunto": "Dúvida sobre exportação de dados em CSV", "status": "Fechado"},
@@ -38,9 +38,9 @@ Por favor, elabore um relatório executivo para a nossa reunião de alinhamento 
 4. **Sugestões de Atuação:** Onde a nossa equipe deve agir proativamente para melhorar a experiência e retenção desse cliente.
 """
 
-# Chamada ao modelo Gemini
+# Chamada ao modelo Gemini (modelo atualizado - gemini-2.5-flash foi descontinuado)
 response = client.models.generate_content(
-    model='gemini-2.5-flash',
+    model='gemini-3.6-flash',
     contents=prompt,
 )
 
