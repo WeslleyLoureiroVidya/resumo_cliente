@@ -8,6 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google import genai
 from google.genai import errors as genai_errors
+import markdown  # Biblioteca padrão para converter markdown em html formatado
 
 MOVIDESK_BASE_URL = "https://api.movidesk.com/public/v1/tickets"
 
@@ -138,19 +139,19 @@ Abaixo estão os tickets abertos pela organização '{cliente}' no período de {
 Dados dos tickets (JSON):
 {dados_para_ia}
 
-Elabore uma análise executiva estruturada e objetiva, contendo:
-1. **Principais Dores e Dificuldades:** o que mais tem gerado fricção para o cliente.
-2. **Problemas Técnicos Recorrentes:** incidentes que merecem atenção da engenharia ou suporte.
-3. **Sugestões de Atuação:** onde nossa equipe deve agir proativamente para melhorar a retenção.
+Elabore uma análise executiva estruturada e objetiva, contendo exatamente estas 3 seções com títulos em markdown (###):
+### 1. Principais Dores e Dificuldades
+### 2. Problemas Técnicos Recorrentes
+### 3. Sugestões de Atuação
 
-Vá direto para a análise em tópicos claros.
+Use listas com marcadores (*) para os pontos de cada seção. Seja direto e profissional.
 """
 
     print("Gerando análise executiva com o Gemini...")
     response = gerar_conteudo_com_retry(client=client, model="gemini-3.6-flash", contents=prompt)
     
-    # Converte o texto da IA para blocos HTML simples para encaixar no template
-    analise_ia_html = response.text.replace("\n", "<br>")
+    # Converte o Markdown da IA em HTML limpo e estilizado
+    analise_ia_html = markdown.markdown(response.text)
 
     # Montagem das linhas da tabela HTML
     linhas_tabela = ""
@@ -165,7 +166,6 @@ Vá direto para a análise em tópicos claros.
             status = html.escape(str(t.get("status") or "-"))
             st_class = status_class(t.get("baseStatus"))
             data_abertura = html.escape(formatar_data_br(t.get("createdDate")))
-            solicitante = html.escape(nome_solicitante(t))
 
             linhas_tabela += f"""
             <tr>
@@ -178,7 +178,7 @@ Vá direto para a análise em tópicos claros.
             </tr>
             """
 
-    # HTML Inspirado no padrão da Vidya Code (Roxo corporativo + Cards + Tabela limpa)
+    # HTML com estilos refinados para a área de insights da IA
     html_content = f"""
     <!DOCTYPE html>
     <html lang="pt-BR">
@@ -198,7 +198,15 @@ Vá direto para a análise em tópicos claros.
         .card-label {{ font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase; margin-bottom: 5px; }}
         .card-value {{ font-size: 22px; font-weight: bold; color: #111827; }}
         .section-title {{ font-size: 16px; font-weight: bold; color: #3b1443; margin: 25px 0 12px; border-bottom: 2px solid #f3f4f6; padding-bottom: 6px; }}
-        .ai-box {{ background: #fdf8f6; border-left: 4px solid #3b1443; padding: 18px; border-radius: 4px; font-size: 13px; line-height: 1.6; color: #374151; margin-bottom: 30px; }}
+        
+        /* Estilização refinada para os insights da IA */
+        .ai-box {{ background: #faf5fb; border: 1px solid #f3e8f5; border-left: 4px solid #3b1443; padding: 20px; border-radius: 6px; font-size: 13px; line-height: 1.6; color: #374151; margin-bottom: 30px; }}
+        .ai-box h3 {{ font-size: 14px; color: #3b1443; margin-top: 16px; margin-bottom: 8px; border-bottom: 1px solid #ebdcf0; padding-bottom: 4px; }}
+        .ai-box h3:first-child {{ margin-top: 0; }}
+        .ai-box ul {{ margin: 0 0 10px 0; padding-left: 20px; }}
+        .ai-box li {{ margin-bottom: 6px; }}
+        .ai-box strong {{ color: #1f2937; }}
+
         .table-wrapper {{ width: 100%; overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 8px; }}
         table {{ width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }}
         th {{ background: #f8fafc; color: #6b7280; font-weight: bold; padding: 12px 10px; border-bottom: 1px solid #e5e7eb; }}
@@ -272,7 +280,6 @@ Vá direto para a análise em tópicos claros.
     </html>
     """
 
-    # Envio do e-mail com corpo HTML
     email_user = os.environ.get("EMAIL_USER")
     email_password = os.environ.get("EMAIL_PASSWORD")
     email_to = os.environ.get("EMAIL_TO")
