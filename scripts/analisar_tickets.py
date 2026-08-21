@@ -451,7 +451,7 @@ def main():
     parados_g = sum(m[4] for m in resumo_clientes)
 
     # Links de navegação âncora
-     links_ancora = " &bull; ".join([f'<a href="#cliente-{i+1}" style="color:#6b2d70; text-decoration:none;">[{i+1}. {html.escape(m[0])}]</a>' for i, m in enumerate(resumo_clientes)])
+    links_ancora = " &bull; ".join([f'<a href="#cliente-{i+1}" style="color:#6b2d70; text-decoration:none;">[{i+1}. {html.escape(m[0])}]</a>' for i, m in enumerate(resumo_clientes)])
 
     # Linhas da Tabela Comparativa de Alto Nível
     linhas_resumo_topo = ""
@@ -483,16 +483,16 @@ def main():
         .logo {{ font-size: 11px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; color: #d8c3e0; }}
         .title {{ margin: 0; font-size: 20px; font-weight: bold; }}
         .subtitle {{ margin: 6px 0 0; font-size: 12px; color: #e5d5ec; }}
-        
+
         /* Master Digest Topo */
         .global-kpi {{ background: #f3edf7; padding: 15px; border-bottom: 1px solid #e0d8e8; text-align: center; font-size: 12px; }}
         .nav-bar {{ background: #faf8fc; padding: 8px 15px; border-bottom: 1px solid #eee; font-size: 11px; text-align: center; color: #6b2d70; }}
-        
+
         .content {{ padding: 25px; }}
         .client-section {{ margin-bottom: 35px; padding-bottom: 25px; border-bottom: 2px solid #f3f4f6; }}
         .client-section:last-child {{ border-bottom: none; margin-bottom: 0; padding-bottom: 0; }}
         .client-title {{ font-size: 17px; font-weight: bold; color: #321635; margin: 0; padding: 8px 12px; background: #faf5fb; border-left: 4px solid #6b2d70; border-radius: 4px; }}
-        
+
         .cards {{ display: flex; gap: 10px; margin: 15px 0; justify-content: space-between; }}
         .card {{ flex: 1; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; text-align: center; }}
         .card-label {{ font-size: 10px; font-weight: bold; color: #6b7280; text-transform: uppercase; margin-bottom: 4px; }}
@@ -509,13 +509,13 @@ def main():
         table {{ width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; }}
         th {{ background: #f8fafc; color: #6b7280; font-weight: bold; padding: 8px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }}
         td {{ padding: 8px; border-bottom: 1px solid #f0f1f3; color: #374151; }}
-        
+
         .status {{ display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 9.5px; font-weight: bold; white-space: nowrap; }}
         .status-success {{ background: #e9f7ef; color: #18794e; }}
         .status-danger {{ background: #fdecec; color: #b42318; }}
         .status-warning {{ background: #fff6df; color: #a15c00; }}
         .status-info {{ background: #edf4ff; color: #2457a6; }}
-        
+
         .footer {{ padding: 15px; text-align: center; font-size: 10.5px; color: #9ca3af; background: #fafafa; border-top: 1px solid #e5e7eb; }}
     </style>
     </head>
@@ -527,10 +527,10 @@ def main():
                 <h1 class="title">Relatório Executivo Consolidado</h1>
                 <p class="subtitle">Período: {periodo_titulo} ({data_inicio.strftime('%d/%m/%Y')} até {data_fim.strftime('%d/%m/%Y')}) &bull; Top 5 Clientes</p>
             </div>
-            
+
             <!-- VISÃO GERAL ACUMULADA -->
             <div class="global-kpi">
-                <strong>📊 VISÃO GERAL DOS 5 CLIENTES:</strong> 
+                <strong>📊 VISÃO GERAL DOS 5 CLIENTES:</strong>
                 &nbsp;|&nbsp; <strong>Total:</strong> {total_g}
                 &nbsp;|&nbsp; <span style="color:#18794e;"><strong>Resolvidos:</strong> {resolvidos_g}</span>
                 &nbsp;|&nbsp; <span style="color:#2457a6;"><strong>Andamento:</strong> {andamento_g}</span>
