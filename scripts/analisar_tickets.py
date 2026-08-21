@@ -328,7 +328,7 @@ Use listas com marcadores (*) para os pontos de cada seção. Seja direto e resu
 """
 
     print(f"  Gerando análise com Gemini para '{nome_cliente}'...")
-    response = gerar_conteudo_com_retry(client=gemini_client, model="gemini-2.5-flash", prompt=prompt)
+    response = gerar_conteudo_com_retry(client=gemini_client, model="gemini-3.6-flash", prompt=prompt)
     analise_ia_html = markdown_para_html(response.text)
 
     linhas_tabela = ""
